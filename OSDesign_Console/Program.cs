@@ -19,7 +19,6 @@ namespace OSDesign_Console
 				Console.ForegroundColor = senderColor;
 				Console.Write($"[{sender}] ");
 				Console.ForegroundColor = ConsoleColor.Gray;
-				; ; ;
 				Console.WriteLine(str);
 				Console.ResetColor();
 			}
