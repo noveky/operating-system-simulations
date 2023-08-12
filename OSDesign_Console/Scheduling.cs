@@ -28,7 +28,7 @@ namespace OSDesign_Console.Scheduling
 		IO,
 	}
 
-	public class Operation
+	class Operation
 	{
 		public OperationType Type { get; set; }
 		public int TimeRemaining { get; set; }
@@ -42,7 +42,7 @@ namespace OSDesign_Console.Scheduling
 		public override string ToString() => $"({Type}, {TimeRemaining} ms)";
 	}
 
-	public class Process
+	class Process
 	{
 		static int _nextId = 1;
 		static int NextId => _nextId++;
@@ -56,7 +56,7 @@ namespace OSDesign_Console.Scheduling
 		Operation? CurrentOperation => OperationQueue.Count == 0 ? null : OperationQueue.Peek();
 
 		public int TimeRemaining => OperationQueue.Sum(o => o.TimeRemaining);
-		public string OperationsStr
+		public string OperationsStr // 用字符串表示操作队列
 		{
 			get
 			{
@@ -77,11 +77,11 @@ namespace OSDesign_Console.Scheduling
 			Id = NextId;
 		}
 
-		public override string ToString() => $"{{ Id: {Id}, State: {State}, TimeSlice: {TimeSlice} ms, Operations: {OperationsStr} }}";
+		public override string ToString() => $"{{ ID：{Id}，状态：{State}，时间片：{TimeSlice} ms，操作：{OperationsStr} }}";
 
-		void Log(string str)
+		void Log(string? str = null)
 		{
-			Program.SchedulingLog($"进程 {Id}", ConsoleColor.Yellow, str);
+			Scheduling.Log(str, $"进程 {Id}", ConsoleColor.Yellow);
 		}
 
 		public async Task Run()
@@ -101,9 +101,9 @@ namespace OSDesign_Console.Scheduling
 				// 当前操作为计算操作
 				Log($"开始执行计算：{CurrentOperation}");
 				int runtime = Math.Min(CurrentOperation.TimeRemaining, TimeSlice);
-				int time = Program.Time;
+				int time = Scheduling.Time;
 				await Task.Delay(runtime); // 模拟计算操作
-				Program.Time = time + runtime;
+				Scheduling.Time = time + runtime;
 				CurrentOperation.TimeRemaining -= runtime;
 				TimeSlice -= runtime;
 				if (CurrentOperation.TimeRemaining <= 0)
@@ -123,9 +123,9 @@ namespace OSDesign_Console.Scheduling
 			Log($"开始等待 I/O：{CurrentOperation}");
 			IOState = IOState.Requesting;
 			int delayTime = CurrentOperation!.TimeRemaining;
-			int time = Program.Time;
+			int time = Scheduling.Time;
 			await Task.Delay(delayTime);
-			Program.Time = time + delayTime;
+			Scheduling.Time = time + delayTime;
 			CurrentOperation.TimeRemaining = 0;
 			Log($"完成 I/O：{CurrentOperation}");
 			IOState = IOState.Idle;
@@ -133,13 +133,13 @@ namespace OSDesign_Console.Scheduling
 		}
 	}
 
-	public class Scheduler
+	class Scheduler
 	{
 		readonly Queue<Process> lowPriorityQueue = new(), highPriorityQueue = new(), ioBlockedQueue = new();
 
-		public void Log(string str)
+		public void Log(string? str = null)
 		{
-			Program.SchedulingLog("调度器", ConsoleColor.Blue, str);
+			Scheduling.Log(str, "调度器", ConsoleColor.Blue);
 		}
 		
 		public void CreateProcess(IEnumerable<Operation> operations)
@@ -223,6 +223,40 @@ namespace OSDesign_Console.Scheduling
 					Log($"进程结束：{process}");
 				}
 			}
+		}
+	}
+
+	public static class Scheduling
+	{
+		public static int Time { get; set; } = 0;
+
+		public static void Log(string? str, string sender, ConsoleColor senderColor)
+		{
+			Program.PrintLnSegments(
+				new($"({Time,4} ms) ", ConsoleColor.DarkGray),
+				new($"[{sender}] ", senderColor),
+				new(str, ConsoleColor.White)
+			);
+		}
+
+		public static void Test()
+		{
+			Time = 0;
+
+			Scheduler scheduler = new();
+
+			Operation operation1 = new(OperationType.Computation, 100);
+			Operation operation2 = new(OperationType.IO, 200);
+			Operation operation3 = new(OperationType.Computation, 300);
+			Operation operation4 = new(OperationType.Computation, 400);
+			Operation operation5 = new(OperationType.IO, 500);
+			Operation operation6 = new(OperationType.Computation, 600);
+
+			scheduler.CreateProcess(operation1, operation2, operation3);
+			scheduler.CreateProcess(operation4);
+			scheduler.CreateProcess(operation5, operation6);
+
+			scheduler.Run().Wait();
 		}
 	}
 }
