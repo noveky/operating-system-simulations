@@ -186,7 +186,7 @@ namespace OSDesign_Console.FileSystem
 	}
 
 	[Serializable]
-	class FileOperationSystem
+	class FileOperatingSystem
 	{
 		readonly long blockSize; // 持久化
 		readonly int maxFileCountPerUser = 10; // 持久化
@@ -217,7 +217,7 @@ namespace OSDesign_Console.FileSystem
 			}
 		}
 
-		public FileOperationSystem(long diskSize, long blockSize, int maxFileCountPerUser, int maxOpenFileCount)
+		public FileOperatingSystem(long diskSize, long blockSize, int maxFileCountPerUser, int maxOpenFileCount)
 		{
 			if (diskSize / blockSize * blockSize != diskSize)
 			{
@@ -235,15 +235,15 @@ namespace OSDesign_Console.FileSystem
 
 		public static void Log(string? str) => FileSystem.Log($"[文件系统] {str}", ConsoleColor.DarkGray);
 
-		public static FileOperationSystem Create()
+		public static FileOperatingSystem Create()
 		{
-			FileOperationSystem fs = new(1L * 256L, 4L * 1L, 10, 16);
+			FileOperatingSystem fs = new(1L * 256L, 4L * 1L, 10, 16);
 			return fs;
 		}
 
-		public static FileOperationSystem CreateForTest()
+		public static FileOperatingSystem CreateForTest()
 		{
-			FileOperationSystem fs = Create();
+			FileOperatingSystem fs = Create();
 
 			// 添加初始用户
 			fs.CreateUser("user1");
@@ -297,7 +297,7 @@ namespace OSDesign_Console.FileSystem
 			FileSystem.PrintData("将文件系统序列化为二进制数据：", data);
 		}
 
-		public static FileOperationSystem LoadOrCreateForTest()
+		public static FileOperatingSystem LoadOrCreateForTest()
 		{
 			try
 			{
@@ -310,7 +310,7 @@ namespace OSDesign_Console.FileSystem
 
 				FileSystem.PrintData("将二进制数据反序列化为文件系统：", data);
 
-				FileOperationSystem fs = FromBinary(data);
+				FileOperatingSystem fs = FromBinary(data);
 				fs.users.Values.ToList().ForEach(t => UserInfo.idGenerator.NewId(t.Id));
 				fs.files.Values.ToList().ForEach(t => FileInfo.idGenerator.NewId(t.Id));
 				return fs;
@@ -331,12 +331,12 @@ namespace OSDesign_Console.FileSystem
 			return stream.ToArray();
 		}
 
-		public static FileOperationSystem FromBinary(byte[] data)
+		public static FileOperatingSystem FromBinary(byte[] data)
 		{
 			BinaryFormatter formatter = new();
-			FileOperationSystem fs;
+			FileOperatingSystem fs;
 			using MemoryStream stream = new(data);
-			fs = (FileOperationSystem)formatter.Deserialize(stream);
+			fs = (FileOperatingSystem)formatter.Deserialize(stream);
 			return fs;
 		}
 #pragma warning restore SYSLIB0011
@@ -674,7 +674,7 @@ namespace OSDesign_Console.FileSystem
 			FileSystem.Log(text, ConsoleColor.White);
 		}
 
-		public void CmdDir(string userName)
+		void CmdDir(string userName)
 		{
 			UserInfo user = GetUser(userName);
 			List<FileInfo> userFiles = ListUserFiles(user);
@@ -683,7 +683,7 @@ namespace OSDesign_Console.FileSystem
 			Output("]");
 		}
 
-		public void CmdOpen(string filePath)
+		void CmdOpen(string filePath)
 		{
 			BreakFilePath(filePath, out string userName, out string fileName);
 			UserInfo user = GetUser(userName);
@@ -692,14 +692,14 @@ namespace OSDesign_Console.FileSystem
 			Output($"文件 \"{filePath}\" 已打开：{openFile}");
 		}
 
-		public void CmdClose(int fileDescriptor)
+		void CmdClose(int fileDescriptor)
 		{
 			OpenFileInfo openFile = GetOpenFile(fileDescriptor);
 			CloseFile(openFile);
 			Output($"文件描述符 {fileDescriptor} 已关闭");
 		}
 
-		public void CmdCreate(string filePath, string protectionFields)
+		void CmdCreate(string filePath, string protectionFields)
 		{
 			if (protectionFields.Length != 3 || protectionFields.Replace("0", "").Replace("1", "") != "") throw new Exception("保护字段参数无效");
 			bool protectionFieldR = int.Parse(protectionFields[0..1]) == 1;
@@ -713,7 +713,7 @@ namespace OSDesign_Console.FileSystem
 			Output($"新文件已打开：{openFile}");
 		}
 
-		public void CmdDelete(string filePath)
+		void CmdDelete(string filePath)
 		{
 			BreakFilePath(filePath, out string userName, out string fileName);
 			UserInfo user = GetUser(userName);
@@ -722,7 +722,7 @@ namespace OSDesign_Console.FileSystem
 			Output($"文件 \"{filePath}\" 已删除");
 		}
 
-		public void CmdRead(int fileDescriptor, long? bytesToRead = null)
+		void CmdRead(int fileDescriptor, long? bytesToRead = null)
 		{
 			OpenFileInfo openFile = GetOpenFile(fileDescriptor);
 			FileInfo file = GetFile(openFile.FileId);
@@ -732,12 +732,129 @@ namespace OSDesign_Console.FileSystem
 			Output($"{text}");
 		}
 
-		public void CmdWrite(int fileDescriptor, string text)
+		void CmdWrite(int fileDescriptor, string text)
 		{
 			OpenFileInfo openFile = GetOpenFile(fileDescriptor);
 			byte[] data = FileSystem.TextToData(text);
 			WriteFile(openFile, data, data.LongLength);
 			Output($"写入完成，当前文件信息：{GetFile(openFile.FileId)}");
+		}
+
+		static void CmdGuide()
+		{
+			FileSystem.Log(
+				"""
+				命令说明：
+				guide					显示命令说明
+				exit					退出并保存文件系统
+				restore					重置文件系统
+				info					显示文件系统信息
+				dir <用户名>				列文件目录
+				open <用户名>/<文件名>			打开文件
+				close <文件描述符>			关闭文件
+				create <用户名>/<文件名> <保护字段>	创建文件
+				delete <用户名>/<文件名>		删除文件
+				read <文件描述符>			读文件（从文件头开始到文件尾）
+				read <文件描述符> <字符数>		读文件（从当前读指针开始指定字符数）
+				write <文件描述符> <内容>		写文件
+				""",
+				ConsoleColor.White
+			);
+		}
+
+		public static void HandleInput(FileOperatingSystem fs, string input)
+		{
+			{
+				string cmd;
+				string args;
+				if (!input.Contains(' '))
+				{
+					cmd = input;
+					args = "";
+				}
+				else
+				{
+					int ind = input.IndexOf(' ');
+					cmd = input[0..ind].Trim();
+					args = input[ind..].Trim();
+				}
+
+				switch (cmd)
+				{
+					case "?":
+					case "guide":
+						CmdGuide();
+						break;
+					case "exit":
+						{
+							fs.Close();
+							FileSystem.Exited = true;
+
+							Log("文件系统已关闭并保存");
+						}
+						break;
+					case "restore":
+						{
+							fs = FileOperatingSystem.CreateForTest();
+							UserInfo.idGenerator.Restore();
+							FileInfo.idGenerator.Restore();
+							OpenFileInfo.idGenerator.Restore();
+
+							Log($"文件系统已创建并初始化：{fs}");
+						}
+						break;
+					case "info":
+						Log($"文件系统信息：{fs}");
+						break;
+					case "dir":
+						fs.CmdDir(args);
+						break;
+					case "open":
+						fs.CmdOpen(args);
+						break;
+					case "close":
+						fs.CmdClose(int.Parse(args));
+						break;
+					case "create":
+						{
+							string filePath = args[0..(args.Length - 3)].Trim();
+							string protectionFields = args[(args.Length - 3)..].Trim();
+							fs.CmdCreate(filePath, protectionFields);
+						}
+						break;
+					case "delete":
+						fs.CmdDelete(args);
+						break;
+					case "read":
+						{
+							int fileDescriptor;
+							string[] split = args.Split(' ');
+							if (split.Length == 1)
+							{
+								fileDescriptor = int.Parse(args);
+								fs.CmdRead(fileDescriptor);
+							}
+							else if (split.Length == 2)
+							{
+								fileDescriptor = int.Parse(split[0].Trim());
+								long bytesToRead = long.Parse(split[1].Trim());
+								fs.CmdRead(fileDescriptor, bytesToRead);
+							}
+							else throw new Exception("参数无效");
+						}
+						break;
+					case "write":
+						{
+							int ind = args.IndexOf(' ');
+							int fileDescriptor = int.Parse(args[0..ind].Trim());
+							string text = args[ind..].Trim();
+							fs.CmdWrite(fileDescriptor, text);
+						}
+						break;
+					default:
+						throw new Exception("命令无效");
+				}
+			}
 		}
 
 		#endregion
@@ -804,136 +921,24 @@ namespace OSDesign_Console.FileSystem
 			}
 		}
 
-		static bool exited = false;
-
-		static void ShowCmdGuide()
-		{
-			Log(
-				"""
-				命令说明：
-				guide					显示命令说明
-				exit					退出并保存文件系统
-				restore					重置文件系统
-				info					显示文件系统信息
-				dir <用户名>				列文件目录
-				open <用户名>/<文件名>			打开文件
-				close <文件描述符>			关闭文件
-				create <用户名>/<文件名> <保护字段>	创建文件
-				delete <用户名>/<文件名>		删除文件
-				read <文件描述符>			读文件（从文件头开始到文件尾）
-				read <文件描述符> <字符数>		读文件（从当前读指针开始指定字符数）
-				write <文件描述符> <内容>		写文件
-				""",
-				ConsoleColor.White
-			);
-		}
+		public static bool Exited { get; set; } = false;
 
 		public static void Test()
 		{
-			exited = false;
+			Exited = false;
 
-			FileOperationSystem fs = FileOperationSystem.LoadOrCreateForTest();
+			FileOperatingSystem fs = FileOperatingSystem.LoadOrCreateForTest();
 
 			Log($"文件系统已加载或新建：{fs}");
 			Log();
 			ShowCmdGuide();
 			Log();
 
-			while (!exited)
+			while (!Exited)
 			{
 				string input = Input<string>("> ").Trim();
 				// 切字符串，处理命令
-				Try(() =>
-				{
-					string cmd;
-					string args;
-					if (!input.Contains(' '))
-					{
-						cmd = input;
-						args = "";
-					}
-					else
-					{
-						int ind = input.IndexOf(' ');
-						cmd = input[0..ind].Trim();
-						args = input[ind..].Trim();
-					}
-
-					switch (cmd)
-					{
-						case "guide":
-							ShowCmdGuide();
-							break;
-						case "exit":
-							{
-								fs.Close();
-								exited = true;
-
-								Log("文件系统已关闭并保存");
-							}
-							break;
-						case "restore":
-							{
-								fs = FileOperationSystem.CreateForTest();
-								UserInfo.idGenerator.Restore();
-								FileInfo.idGenerator.Restore();
-								OpenFileInfo.idGenerator.Restore();
-
-								Log($"文件系统已创建并初始化：{fs}");
-							}
-							break;
-						case "info":
-							Log($"文件系统信息：{fs}");
-							break;
-						case "dir":
-							fs.CmdDir(args);
-							break;
-						case "open":
-							fs.CmdOpen(args);
-							break;
-						case "close":
-							fs.CmdClose(int.Parse(args));
-							break;
-						case "create":
-							{
-								string filePath = args[0..(args.Length - 3)].Trim();
-								string protectionFields = args[(args.Length - 3)..].Trim();
-								fs.CmdCreate(filePath, protectionFields);
-							}
-							break;
-						case "delete":
-							fs.CmdDelete(args);
-							break;
-						case "read":
-							{
-								int fileDescriptor;
-								string[] split = args.Split(' ');
-								if (split.Length == 1)
-								{
-									fileDescriptor = int.Parse(args);
-									fs.CmdRead(fileDescriptor);
-								}
-								else if (split.Length == 2)
-								{
-									fileDescriptor = int.Parse(split[0].Trim());
-									long bytesToRead = long.Parse(split[1].Trim());
-									fs.CmdRead(fileDescriptor, bytesToRead);
-								}
-								else throw new Exception("参数无效");
-							}
-							break;
-						case "write":
-							{
-								int ind = args.IndexOf(' ');
-								int fileDescriptor = int.Parse(args[0..ind].Trim());
-								string text = args[ind..].Trim();
-								fs.CmdWrite(fileDescriptor, text);
-							}
-							break;
-						default:
-							throw new Exception("命令无效");
-					}
-				});
+				Try(() => fs.HandleInput(input));
 			}
 		}
 	}
