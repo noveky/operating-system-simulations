@@ -24,7 +24,9 @@ namespace OSDesign_Console
 		{
 			lock (consoleLock)
 			{
-				for (int i = 0; i < Console.BufferHeight * 2; ++i) Console.WriteLine();
+				//for (int i = 0; i < Console.BufferHeight * 2; ++i) Console.WriteLine();
+				Console.Clear();
+				Console.WriteLine("\x1b[3J");
 				Console.Clear();
 			}
 		}
