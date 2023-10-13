@@ -12,10 +12,24 @@
 
 本实验模拟在单处理器环境下的进程调度及状态转换，需要设计一个将优先级调度与时间片调度相结合的调度算法，能够实现进程状态的变迁。然后编写合适的测试程序来测试相关功能。
 
+![](Screenshots/Scheduling-1.png)
+
 ## 虚拟内存管理试验
 
 本实验模拟请求分页内存管理的功能，包括地址映射、页面置换（clock）、页面的分配与回收等。假设物理内存有 256MB，虚拟内存有 4GB，设计基于分页的虚拟内存管理机制。
 
+![](Screenshots/MemoryManaging-1.png)
+
+![](Screenshots/MemoryManaging-2.png)
+
+![](Screenshots/MemoryManaging-3.png)
+
 ## 文件系统
 
 本实验的内容为设计一个简单的两级目录文件系统，包括主目录和用户文件目录，支持列文件目录和文件的创建、删除、打开、关闭、读写等操作，实现链接结构的文件存储，提供类控制台的用户界面。
+
+![](Screenshots/FileSystem-1.png)
+
+![](Screenshots/FileSystem-2.png)
+
+![](Screenshots/FileSystem-3.png)
